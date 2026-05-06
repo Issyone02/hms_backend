@@ -2,16 +2,17 @@
   "name": "hms-backend",
   "version": "1.0.0",
   "description": "Hotel Management System — NestJS Backend",
-  "scripts": {
-    "start":       "node dist/main",
-    "start:dev":   "nest start --watch",
-    "start:prod":  "node dist/main",
-    "build":       "nest build",
-    "lint":        "eslint \"{src,apps,libs,test}/**/*.ts\"",
-    "db:migrate":  "prisma migrate dev",
-    "db:generate": "prisma generate",
-    "db:studio":   "prisma studio"
-  },
+  ""scripts": {
+  "start":       "node dist/main",
+  "start:dev":   "nest start --watch",
+  "start:prod":  "node dist/main",
+  "build":       "nest build",
+  "postinstall": "prisma generate",
+  "lint":        "eslint \"{src,apps,libs,test}/**/*.ts\"",
+  "db:migrate":  "prisma migrate dev",
+  "db:generate": "prisma generate",
+  "db:studio":   "prisma studio"
+},
   "dependencies": {
     "@nestjs/cli":          "^10.3.2",
     "@nestjs/common":       "^10.3.0",
