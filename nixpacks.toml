@@ -4,8 +4,5 @@ nixPkgs = ["nodejs_20", "openssl"]
 [phases.install]
 cmds = ["npm install --include=dev"]
 
-[phases.build]
-cmds = ["npx prisma generate", "npx nest build"]
-
 [start]
 cmd = "node dist/main"
