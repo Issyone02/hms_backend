@@ -113,7 +113,7 @@ export class BookingsService {
     const [bookings, total] = await this.prisma.$transaction([
       this.prisma.roomBooking.findMany({
         where, skip, take: limit,
-        include: { guest: { select: { id: true, firstName: true, lastName: true, email: true } }, room: true },
+        include: { guest: { select: { id: true, firstName: true, lastName: true, email: true } }, room: true, payment: true, invoiceItems: true },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.roomBooking.count({ where }),
