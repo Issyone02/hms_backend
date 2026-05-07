@@ -2,7 +2,7 @@
 import {
   Injectable, NotFoundException, ConflictException, BadRequestException,
 } from '@nestjs/common';
-import { Module, Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Module, Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { JwtAuthGuard }  from '../auth/auth.guards';
 import { RolesGuard }    from '../auth/auth.guards';
@@ -151,6 +151,12 @@ class StaffService {
     return s;
   }
 
+async remove(id: string) {
+  const staff = await this.prisma.staff.findUnique({ where: { id } });
+  if (!staff) throw new NotFoundException('Staff not found');
+  await this.prisma.staff.delete({ where: { id } });
+  return { message: 'Staff member deleted successfully' };
+}
   async update(id: string, dto: { isActive?: boolean; role?: string }) {
     return this.prisma.staff.update({
       where: { id },
@@ -169,6 +175,8 @@ class StaffController {
   @Get()     findAll(@Query() q: any)                  { return this.svc.findAll(q); }
   @Get(':id') findOne(@Param('id') id: string)         { return this.svc.findById(id); }
   @Patch(':id') update(@Param('id') id: string, @Body() dto: any) { return this.svc.update(id, dto); }
+@Delete(':id')
+remove(@Param('id') id: string) { return this.svc.remove(id); }
 }
 
 @Module({ controllers: [StaffController], providers: [StaffService] })
