@@ -154,6 +154,20 @@ class StaffService {
 async remove(id: string) {
   const staff = await this.prisma.staff.findUnique({ where: { id } });
   if (!staff) throw new NotFoundException('Staff not found');
+
+  // Remove related records first to avoid foreign key conflicts
+  await this.prisma.$transaction([
+    // Reassign housekeeping logs to no staff (delete them)
+    this.prisma.housekeepingLog.deleteMany({
+      where: { assignedStaffId: id }
+    }),
+    // Clear createdBy reference on bookings
+    this.prisma.roomBooking.updateMany({
+      where: { createdById: id },
+      data:  { createdById: null }
+    }),
+  ]);
+
   await this.prisma.staff.delete({ where: { id } });
   return { message: 'Staff member deleted successfully' };
 }
