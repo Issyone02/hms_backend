@@ -11,6 +11,7 @@ import { HousekeepingModule } from './housekeeping/housekeeping.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StaffModule }      from './housekeeping/housekeeping.module';
 import { ServiceRequestsModule } from './housekeeping/housekeeping.module';
+import { GuestsModule } from './guests/guests.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ServiceRequestsModule } from './housekeeping/housekeeping.module';
     NotificationsModule,
     StaffModule,
     ServiceRequestsModule,
+    GuestModule,
   ],
 })
 export class AppModule {}
