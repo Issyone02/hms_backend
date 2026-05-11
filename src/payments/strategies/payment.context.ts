@@ -17,7 +17,7 @@ class CreditCardStrategy implements PaymentStrategy {
     // In production: call your payment gateway (Stripe, Flutterwave, Paystack…)
     // Raw PAN is NEVER stored; gateway returns a reference token
     const gatewayRef = `CC-${bookingId}-${Date.now()}`;
-    console.log(`[GATEWAY] Credit card charge: £${amount} — ref: ${gatewayRef}`);
+    console.log(`[GATEWAY] Credit card charge: ₦${amount} — ref: ${gatewayRef}`);
     return { success: true, gatewayRef };
   }
 
@@ -47,7 +47,7 @@ class ChequeStrategy implements PaymentStrategy {
 // ── Cash ──────────────────────────────────────────────────────────────────────
 class CashStrategy implements PaymentStrategy {
   async process(_bookingId: string, amount: number): Promise<PaymentResult> {
-    console.log(`[CASH] Cash payment recorded: £${amount}`);
+    console.log(`[CASH] Cash payment recorded: ₦${amount}`);
     return { success: true, gatewayRef: null };
   }
 

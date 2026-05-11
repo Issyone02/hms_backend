@@ -17,9 +17,15 @@ async function bootstrap() {
 
   // ── CORS (allowlist your Expo / web app origins) ──────────────────────────
   app.enableCors({
-    origin:      process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:8081'],
-    credentials: true,
-  });
+  origin: [
+    'http://localhost:8081',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    /\.railway\.app$/,
+    /\.vercel\.app$/,
+  ],
+  credentials: true,
+});
 
   // ── Global validation pipe (whitelist + no extra properties) ─────────────
   app.useGlobalPipes(
