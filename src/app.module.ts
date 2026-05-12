@@ -26,7 +26,7 @@ import { GuestsModule } from './guests/guests.module';
     NotificationsModule,
     StaffModule,
     ServiceRequestsModule,
-    GuestModule,
+    GuestsModule,
   ],
 })
 export class AppModule {}
