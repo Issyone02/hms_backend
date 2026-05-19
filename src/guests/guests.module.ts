@@ -54,7 +54,7 @@ export class GuestsController {
     });
     return { message: 'Guest account deleted' };
   }
-}
+} 
 
 @Module({
   controllers: [GuestsController],
