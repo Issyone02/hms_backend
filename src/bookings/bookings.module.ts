@@ -259,11 +259,13 @@ export class BookingsController {
 
   @Post()
   create(
-    @Body() body: { roomId: string; checkInDate: string; checkOutDate: string },
+    @Body() body: { roomId: string; checkInDate: string; checkOutDate: string; guestId?: string; },
     @CurrentUser() user: any,
   ) {
-    const staffId = user.role !== 'GUEST' ? user.id : undefined;
-    return this.svc.create(user.id, body.roomId, body.checkInDate, body.checkOutDate, staffId);
+    const isStaff = user.role !== 'GUEST';
+    const guestId = isStaff && body.guestId ? body.guestId : user.id;
+    const staffId = isStaff ? user.id : undefined;
+    return this.svc.create(guestId, body.roomId, body.checkInDate, body.checkOutDate, staffId, );
   }
 
   @Get()
