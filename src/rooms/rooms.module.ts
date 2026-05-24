@@ -97,6 +97,17 @@ export class RoomsService {
     await this.findById(id);
     return this.prisma.room.update({ where: { id }, data: { status: status as any } });
   }
+
+  async bulkUpdatePrice(style: string, pricePerNight: number) {
+    const result = await this.prisma.room.updateMany({
+      where: { style: style as any},
+      data: {pricePerNight},
+    });
+    return {
+      message: 'Updated ${result.count) ${style} room(s) to N${pricePerNight}/night',
+      count:  result.count,
+    };
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -142,6 +153,13 @@ export class RoomsController {
   @Roles('MANAGER', 'RECEPTIONIST')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateRoomStatusDto) {
     return this.rooms.updateStatus(id, dto.status);
+  }
+
+  @Patch( 'bulk-price')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER')
+  bulkUpdatePrice(@Body() body: { style: string; pricePerNight: number}) {
+    return this.rooms.bulkUpdatePrice(body.style, body.pricePerNight);
   }
 }
 
