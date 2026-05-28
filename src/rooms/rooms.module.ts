@@ -110,6 +110,23 @@ export class RoomsService {
   }
 }
 
+export enum RoomStyleEnum {
+  STANDARD = 'STANDARD',
+  DELUXE   = 'DELUXE',
+  FAMILY   = 'FAMILY',
+  BUSINESS = 'BUSINESS',
+}
+
+class BulkUpdatePriceDto {
+  @IsEnum(RoomStyleEnum)
+  style: RoomStyleEnum;
+
+  @IsNumber()
+  @Min(0)
+  pricePerNight: number;
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // src/rooms/rooms.controller.ts
 import {
@@ -155,11 +172,11 @@ export class RoomsController {
     return this.rooms.updateStatus(id, dto.status);
   }
 
-  @Patch( 'bulk-price')
+  @Patch('bulk-price')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('MANAGER')
-  bulkUpdatePrice(@Body() body: { style: string; pricePerNight: number}) {
-    return this.rooms.bulkUpdatePrice(body.style, body.pricePerNight);
+  bulkUpdatePrice(@Body() body: BulkUpdatePriceDto) {
+  return this.rooms.bulkUpdatePrice(body.style, body.pricePerNight);
   }
 }
 
