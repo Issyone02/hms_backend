@@ -146,10 +146,20 @@ export class RoomsController {
     return this.rooms.searchRooms(query);
   }
 
+
+  @Patch('bulk-price')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('MANAGER')
+  bulkUpdatePrice(@Body() body: BulkUpdatePriceDto) {
+  return this.rooms.bulkUpdatePrice(body.style, body.pricePerNight);
+  }
+
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.rooms.findById(id);
   }
+
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -170,13 +180,6 @@ export class RoomsController {
   @Roles('MANAGER', 'RECEPTIONIST')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateRoomStatusDto) {
     return this.rooms.updateStatus(id, dto.status);
-  }
-
-  @Patch('bulk-price')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('MANAGER')
-  bulkUpdatePrice(@Body() body: BulkUpdatePriceDto) {
-  return this.rooms.bulkUpdatePrice(body.style, body.pricePerNight);
   }
 }
 
