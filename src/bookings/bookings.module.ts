@@ -97,7 +97,19 @@ export class BookingsService {
       `Your booking has been confirmed. Check-in: ${checkIn.toDateString()}.`,
       NotificationType.BOOKING_CONFIRMED,
     );
+
+      // After creating the booking, create a notification
+await this.prisma.notification.create({
+  data: {
+    userId:  guestId,
+    type:    'BOOKING_CONFIRMED',
+    title:   'Booking Confirmed! 🎉',
+    message: `Your booking for Room ${room.roomNumber} has been confirmed. Check-in: ${checkInDate}`,
+    isRead:  false,
+  },
+});
   }
+
 
   // ── Find all (receptionist/manager) ────────────────────────────────────────
   async findAll(filters: {
@@ -200,7 +212,31 @@ export class BookingsService {
     });
 
     return { booking: updatedBooking, roomKey: key };
+
+    // Add after checkin update
+await this.prisma.notification.create({
+  data: {
+    userId:  booking.guestId,
+    type:    'CHECKIN',
+    title:   'Welcome! Check-In Complete 🏠',
+    message: `You have successfully checked into Room ${booking.room.roomNumber}. Enjoy your stay!`,
+    isRead:  false,
+  },
+});
+
+// Add after checkout update
+await this.prisma.notification.create({
+  data: {
+    userId:  booking.guestId,
+    type:    'CHECKOUT',
+    title:   'Check-Out Complete 🚪',
+    message: `Thank you for staying at Grand Issyone Hotel! We hope to see you again.`,
+    isRead:  false,
+  },
+});
   }
+
+  
 
   // ── Check-Out ───────────────────────────────────────────────────────────────
   async checkOut(id: string, receptionistId: string) {
