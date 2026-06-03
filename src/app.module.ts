@@ -12,7 +12,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { StaffModule }      from './housekeeping/housekeeping.module';
 import { ServiceRequestsModule } from './housekeeping/housekeeping.module';
 import { GuestsModule } from './guests/guests.module';
-import { EmailModule } from './email.module';
+import { EmailModule } from './email/email.module';
 
 @Module({
   imports: [
