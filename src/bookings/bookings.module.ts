@@ -1,23 +1,38 @@
-// src/bookings/bookings.service.ts
+// ─────────────────────────────────────────────────────────────────────────────
+// src/bookings/bookings.module.ts  (complete file)
+// ─────────────────────────────────────────────────────────────────────────────
 import {
-  Injectable, NotFoundException, BadRequestException, ConflictException,
+  Injectable, NotFoundException, BadRequestException,
+  ConflictException, Module, Controller, Get, Post,
+  Patch, Param, Body, Query, UseGuards,
 } from '@nestjs/common';
 import { PrismaService }        from '../common/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsModule }  from '../notifications/notifications.module';
+import { EmailService }         from '../email/email.service';
+import { EmailModule }          from '../email/email.module';
+import { JwtAuthGuard }         from '../auth/auth.guards';
+import { RolesGuard }           from '../auth/auth.guards';
+import { Roles }                from '../common/decorators/index';
+import { CurrentUser }          from '../common/decorators/index';
 import { NotificationType }     from '@prisma/client';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVICE
+// ─────────────────────────────────────────────────────────────────────────────
 @Injectable()
 export class BookingsService {
   constructor(
-    private prisma:         PrismaService,
-    private notifications:  NotificationsService,
+    private prisma:        PrismaService,
+    private notifications: NotificationsService,
+    private email:         EmailService,
   ) {}
 
-  // ── Create ──────────────────────────────────────────────────────────────────
+  // ── Create ─────────────────────────────────────────────────────────────────
   async create(
-    guestId: string,
-    roomId: string,
-    checkInDate: string,
+    guestId:      string,
+    roomId:       string,
+    checkInDate:  string,
     checkOutDate: string,
     createdById?: string,
   ) {
@@ -29,7 +44,7 @@ export class BookingsService {
     if (checkIn < new Date())
       throw new BadRequestException('Check-in date cannot be in the past');
 
-    // Verify room availability
+    // Check availability
     const conflict = await this.prisma.roomBooking.findFirst({
       where: {
         roomId,
@@ -47,7 +62,10 @@ export class BookingsService {
     if (room.status !== 'AVAILABLE')
       throw new BadRequestException(`Room is currently ${room.status}`);
 
-    // Create booking (PENDING → auto-confirm)
+    const guest = await this.prisma.guest.findUnique({ where: { id: guestId } });
+    if (!guest) throw new NotFoundException('Guest not found');
+
+    // Create booking
     const booking = await this.prisma.roomBooking.create({
       data: {
         guestId, roomId, checkInDate: checkIn, checkOutDate: checkOut,
@@ -56,20 +74,55 @@ export class BookingsService {
       include: { guest: true, room: true },
     });
 
-    // Confirm and generate invoice items
-    await this.confirm(booking.id, booking.guestId, booking.room.pricePerNight, checkIn, checkOut, booking.room.roomNumber);
+    // Confirm and generate invoice
+    await this.confirm(
+      booking.id, guestId,
+      room.pricePerNight, checkIn, checkOut,
+      room.roomNumber,
+    );
+
+    // Send confirmation email
+    if (guest.email) {
+      const nights = Math.ceil(
+        (checkOut.getTime() - checkIn.getTime()) / 86400000
+      );
+      const subtotal    = Number(room.pricePerNight) * nights;
+      const tax         = subtotal * 0.075;
+      const totalAmount = subtotal + tax;
+      const bookingRef  = `GIH-${booking.id.slice(0, 8).toUpperCase()}`;
+
+      await this.email.sendBookingConfirmation({
+        guestName:   `${guest.firstName} ${guest.lastName}`,
+        guestEmail:  guest.email,
+        bookingRef,
+        roomNumber:  room.roomNumber,
+        roomType:    room.style,
+        checkIn:     checkIn.toDateString(),
+        checkOut:    checkOut.toDateString(),
+        nights,
+        totalAmount,
+        hotelName:   'Grand Issyone Hotel',
+      });
+    }
+
     return this.findById(booking.id);
   }
 
+  // ── Confirm (internal) ──────────────────────────────────────────────────────
   private async confirm(
-    bookingId: string, guestId: string,
-    pricePerNight: any, checkIn: Date, checkOut: Date,
-    roomNumber: string,
+    bookingId:    string,
+    guestId:      string,
+    pricePerNight: any,
+    checkIn:      Date,
+    checkOut:     Date,
+    roomNumber:   string,
   ) {
-    const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / 86400000);
-    const roomRate = Number(pricePerNight) * nights;
-    const hotelTaxRate = 0.20; // default 20%; load from hotel config in production
-    const tax = parseFloat((roomRate * hotelTaxRate).toFixed(2));
+    const nights      = Math.ceil(
+      (checkOut.getTime() - checkIn.getTime()) / 86400000
+    );
+    const roomRate    = Number(pricePerNight) * nights;
+    const taxRate     = 0.20;
+    const tax         = parseFloat((roomRate * taxRate).toFixed(2));
 
     await this.prisma.$transaction([
       this.prisma.roomBooking.update({
@@ -86,32 +139,32 @@ export class BookingsService {
       this.prisma.invoiceItem.create({
         data: {
           bookingId, category: 'TAX',
-          description: `VAT (${(hotelTaxRate * 100).toFixed(0)}%)`,
+          description: `VAT (${(taxRate * 100).toFixed(0)}%)`,
           amount: tax,
         },
       }),
     ]);
 
+    // In-app notification
     await this.notifications.dispatch(
       'BOOKING_CONFIRMED', guestId,
       `Your booking has been confirmed. Check-in: ${checkIn.toDateString()}.`,
       NotificationType.BOOKING_CONFIRMED,
     );
 
-      // After creating the booking, create a notification
-await this.prisma.notification.create({
-  data: {
-    userId:  guestId,
-    type:    'BOOKING_CONFIRMED',
-    title:   'Booking Confirmed! 🎉',
-    message: `Your booking for Room ${room.roomNumber} has been confirmed. Check-in: ${checkInDate}`,
-    isRead:  false,
-  },
-});
+    // Push notification record
+    await this.prisma.notification.create({
+      data: {
+        userId:  guestId,
+        type:    'BOOKING_CONFIRMED',
+        title:   'Booking Confirmed! 🎉',
+        message: `Your booking for Room ${roomNumber} is confirmed. Check-in: ${checkIn.toDateString()}`,
+        isRead:  false,
+      },
+    });
   }
 
-
-  // ── Find all (receptionist/manager) ────────────────────────────────────────
+  // ── Find All ────────────────────────────────────────────────────────────────
   async findAll(filters: {
     guestId?: string; status?: string; page?: number; limit?: number;
   }) {
@@ -119,13 +172,18 @@ await this.prisma.notification.create({
     const limit = Number(filters.limit ?? 20);
     const skip  = (page - 1) * limit;
     const where: any = {};
-    if (filters.guestId) where.guestId       = filters.guestId;
-    if (filters.status)  where.bookingStatus  = filters.status;
+    if (filters.guestId) where.guestId      = filters.guestId;
+    if (filters.status)  where.bookingStatus = filters.status;
 
     const [bookings, total] = await this.prisma.$transaction([
       this.prisma.roomBooking.findMany({
         where, skip, take: limit,
-        include: { guest: { select: { id: true, firstName: true, lastName: true, email: true } }, room: true, payment: true, invoiceItems: true },
+        include: {
+          guest:        { select: { id: true, firstName: true, lastName: true, email: true } },
+          room:         true,
+          payment:      true,
+          invoiceItems: true,
+        },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.roomBooking.count({ where }),
@@ -133,7 +191,7 @@ await this.prisma.notification.create({
     return { bookings, total, page, limit };
   }
 
-  // ── Find mine (guest) ───────────────────────────────────────────────────────
+  // ── Find My Bookings ────────────────────────────────────────────────────────
   async findMyBookings(guestId: string) {
     return this.prisma.roomBooking.findMany({
       where:   { guestId },
@@ -142,7 +200,7 @@ await this.prisma.notification.create({
     });
   }
 
-  // ── Find by ID ──────────────────────────────────────────────────────────────
+  // ── Find By ID ──────────────────────────────────────────────────────────────
   async findById(id: string) {
     const b = await this.prisma.roomBooking.findUnique({
       where:   { id },
@@ -186,11 +244,12 @@ await this.prisma.notification.create({
     if (booking.bookingStatus !== 'CONFIRMED')
       throw new BadRequestException('Booking must be CONFIRMED before check-in');
 
-    // Issue a room key
     const barcode = `KEY-${booking.room.roomNumber}-${Date.now()}`;
-    const [updatedBooking, key] = await this.prisma.$transaction([
+
+    await this.prisma.$transaction([
       this.prisma.roomBooking.update({
-        where: { id }, data: { bookingStatus: 'CHECKED_IN' },
+        where: { id },
+        data:  { bookingStatus: 'CHECKED_IN' },
       }),
       this.prisma.roomKey.create({
         data: {
@@ -211,32 +270,36 @@ await this.prisma.notification.create({
       },
     });
 
+    // In-app notification
+    await this.prisma.notification.create({
+      data: {
+        userId:  booking.guestId,
+        type:    'CHECKIN',
+        title:   'Welcome! Check-In Complete 🏠',
+        message: `You have successfully checked into Room ${booking.room.roomNumber}. Enjoy your stay!`,
+        isRead:  false,
+      },
+    });
+
+    // Email notification
+    if (booking.guest?.email) {
+      await this.email.sendCheckInNotification({
+        guestName:  `${booking.guest.firstName} ${booking.guest.lastName}`,
+        guestEmail: booking.guest.email,
+        roomNumber: booking.room.roomNumber,
+        checkOut:   new Date(booking.checkOutDate).toDateString(),
+        hotelName:  'Grand Issyone Hotel',
+      });
+    }
+
+    const updatedBooking = await this.findById(id);
+    const key = await this.prisma.roomKey.findFirst({
+      where: { roomId: booking.roomId, isActive: true },
+      orderBy: { issuedAt: 'desc' },
+    });
+
     return { booking: updatedBooking, roomKey: key };
-
-    // Add after checkin update
-await this.prisma.notification.create({
-  data: {
-    userId:  booking.guestId,
-    type:    'CHECKIN',
-    title:   'Welcome! Check-In Complete 🏠',
-    message: `You have successfully checked into Room ${booking.room.roomNumber}. Enjoy your stay!`,
-    isRead:  false,
-  },
-});
-
-// Add after checkout update
-await this.prisma.notification.create({
-  data: {
-    userId:  booking.guestId,
-    type:    'CHECKOUT',
-    title:   'Check-Out Complete 🚪',
-    message: `Thank you for staying at Grand Issyone Hotel! We hope to see you again.`,
-    isRead:  false,
-  },
-});
   }
-
-  
 
   // ── Check-Out ───────────────────────────────────────────────────────────────
   async checkOut(id: string, receptionistId: string) {
@@ -246,7 +309,8 @@ await this.prisma.notification.create({
 
     await this.prisma.$transaction([
       this.prisma.roomBooking.update({
-        where: { id }, data: { bookingStatus: 'CHECKED_OUT' },
+        where: { id },
+        data:  { bookingStatus: 'CHECKED_OUT' },
       }),
       this.prisma.roomKey.updateMany({
         where: { roomId: booking.roomId, isActive: true },
@@ -265,29 +329,94 @@ await this.prisma.notification.create({
       },
     });
 
+    // In-app notification
+    await this.prisma.notification.create({
+      data: {
+        userId:  booking.guestId,
+        type:    'CHECKOUT',
+        title:   'Check-Out Complete 🚪',
+        message: `Thank you for staying at Grand Issyone Hotel! We hope to see you again.`,
+        isRead:  false,
+      },
+    });
+
     await this.notifications.dispatch(
       'CHECK_OUT_REMINDER', booking.guestId,
       'Thank you for staying with us. Your invoice is ready.',
       NotificationType.PAYMENT_RECEIPT,
     );
 
-    // Return invoice summary
-    const items = await this.prisma.invoiceItem.findMany({ where: { bookingId: id } });
+    const items = await this.prisma.invoiceItem.findMany({
+      where: { bookingId: id },
+    });
     return { booking, invoice: items };
+  }
+
+  // ── Create Payment ──────────────────────────────────────────────────────────
+  async createPayment(bookingId: string, method: string) {
+    const booking = await this.findById(bookingId);
+
+    const items  = await this.prisma.invoiceItem.findMany({
+      where: { bookingId },
+    });
+    const amount = items.reduce((s, i) => s + Number(i.amount), 0);
+
+    const strategies: Record<string, any> = {
+      CASH:        { process: () => ({ success: true }) },
+      CREDIT_CARD: { process: () => ({ success: true }) },
+      CHEQUE:      { process: () => ({ success: true }) },
+    };
+
+    const strategy = strategies[method];
+    if (!strategy) throw new BadRequestException('Unsupported payment method');
+
+    const result  = strategy.process();
+    const payment = await this.prisma.payment.create({
+      data: {
+        bookingId,
+        method:  method as any,
+        amount,
+        status:  result.success ? 'COMPLETED' : 'FAILED',
+        paidAt:  result.success ? new Date() : null,
+      },
+    });
+
+    // Send receipt email
+    if (result.success && booking.guest?.email) {
+      const nights = Math.ceil(
+        (new Date(booking.checkOutDate).getTime() -
+         new Date(booking.checkInDate).getTime()) / 86400000
+      );
+      await this.email.sendReceipt({
+        guestName:  `${booking.guest.firstName} ${booking.guest.lastName}`,
+        guestEmail: booking.guest.email,
+        bookingRef: `GIH-${booking.id.slice(0, 8).toUpperCase()}`,
+        roomNumber: booking.room.roomNumber,
+        checkIn:    new Date(booking.checkInDate).toDateString(),
+        checkOut:   new Date(booking.checkOutDate).toDateString(),
+        nights,
+        amount,
+        method,
+        hotelName:  'Grand Issyone Hotel',
+      });
+    }
+
+    return payment;
+  }
+
+  // ── Get Invoice ─────────────────────────────────────────────────────────────
+  async getInvoice(bookingId: string) {
+    const items = await this.prisma.invoiceItem.findMany({
+      where: { bookingId },
+    });
+    const total = items.reduce((s, i) => s + Number(i.amount), 0);
+    return { items, total };
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// src/bookings/bookings.controller.ts
-import {
-  Controller, Get, Post, Patch, Param, Body, Query,
-  UseGuards,
-} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/auth.guards';
-import { RolesGuard }   from '../auth/auth.guards';
-import { Roles }        from '../common/decorators/index';
-import { CurrentUser }  from '../common/decorators/index';
-
+// CONTROLLER
+// ─────────────────────────────────────────────────────────────────────────────
 @Controller('api/v1/bookings')
 @UseGuards(JwtAuthGuard)
 export class BookingsController {
@@ -295,13 +424,20 @@ export class BookingsController {
 
   @Post()
   create(
-    @Body() body: { roomId: string; checkInDate: string; checkOutDate: string; guestId?: string; },
+    @Body() body: {
+      roomId: string; checkInDate: string;
+      checkOutDate: string; guestId?: string;
+    },
     @CurrentUser() user: any,
   ) {
     const isStaff = user.role !== 'GUEST';
     const guestId = isStaff && body.guestId ? body.guestId : user.id;
     const staffId = isStaff ? user.id : undefined;
-    return this.svc.create(guestId, body.roomId, body.checkInDate, body.checkOutDate, staffId, );
+    return this.svc.create(
+      guestId, body.roomId,
+      body.checkInDate, body.checkOutDate,
+      staffId,
+    );
   }
 
   @Get()
@@ -314,6 +450,11 @@ export class BookingsController {
   @Get('my')
   myBookings(@CurrentUser() user: any) {
     return this.svc.findMyBookings(user.id);
+  }
+
+  @Get(':id/invoice')
+  getInvoice(@Param('id') id: string) {
+    return this.svc.getInvoice(id);
   }
 
   @Get(':id')
@@ -340,15 +481,21 @@ export class BookingsController {
   checkOut(@Param('id') id: string, @CurrentUser() user: any) {
     return this.svc.checkOut(id, user.id);
   }
+
+  @Post(':id/payment')
+  createPayment(
+    @Param('id') id: string,
+    @Body() body: { method: string },
+  ) {
+    return this.svc.createPayment(id, body.method);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// src/bookings/bookings.module.ts
-import { Module }               from '@nestjs/common';
-import { NotificationsModule }  from '../notifications/notifications.module';
-
+// MODULE
+// ─────────────────────────────────────────────────────────────────────────────
 @Module({
-  imports:     [NotificationsModule],
+  imports:     [NotificationsModule, EmailModule],
   controllers: [BookingsController],
   providers:   [BookingsService],
   exports:     [BookingsService],
