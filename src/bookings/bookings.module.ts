@@ -206,6 +206,160 @@ export class BookingsService {
     return b;
   }
 
+
+  // ── Quick Booking (No Account Required) ────────────────────────────────────
+async quickBook(data: {
+  firstName:   string;
+  lastName:    string;
+  email:       string;
+  phone:       string;
+  roomId:      string;
+  checkInDate: string;
+  checkOutDate: string;
+}) {
+  const checkIn  = new Date(data.checkInDate);
+  const checkOut = new Date(data.checkOutDate);
+
+  if (checkOut <= checkIn)
+    throw new BadRequestException('Check-out must be after check-in');
+  if (checkIn < new Date())
+    throw new BadRequestException('Check-in date cannot be in the past');
+
+  // Check room availability
+  const conflict = await this.prisma.roomBooking.findFirst({
+    where: {
+      roomId: data.roomId,
+      bookingStatus: { in: ['CONFIRMED', 'CHECKED_IN'] },
+      AND: [
+        { checkInDate:  { lt: checkOut } },
+        { checkOutDate: { gt: checkIn  } },
+      ],
+    },
+  });
+  if (conflict)
+    throw new ConflictException('Room is not available for these dates');
+
+  const room = await this.prisma.room.findUnique({
+    where: { id: data.roomId },
+  });
+  if (!room) throw new NotFoundException('Room not found');
+  if (room.status !== 'AVAILABLE')
+    throw new BadRequestException(`Room is currently ${room.status}`);
+
+  // Find or create guest account
+  let guest = await this.prisma.guest.findFirst({
+    where: { email: data.email },
+  });
+
+  if (!guest) {
+    // Create a temporary guest account
+    const bcrypt = require('bcrypt');
+    const tempPassword = await bcrypt.hash(
+      `GIH-${Date.now()}`, 10
+    );
+    guest = await this.prisma.guest.create({
+      data: {
+        firstName:    data.firstName,
+        lastName:     data.lastName,
+        email:        data.email,
+        phone:        data.phone,
+        passwordHash: tempPassword,
+        hotelId:      room.hotelId,
+      },
+    });
+  }
+
+  // Generate booking reference
+  const bookingRef = `GIH-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+
+  // Create booking
+  const booking = await this.prisma.roomBooking.create({
+    data: {
+      guestId:       guest.id,
+      roomId:        data.roomId,
+      checkInDate:   checkIn,
+      checkOutDate:  checkOut,
+      bookingStatus: 'PENDING',
+    },
+    include: { guest: true, room: true },
+  });
+
+  // Generate invoice items
+  const nights   = Math.ceil(
+    (checkOut.getTime() - checkIn.getTime()) / 86400000
+  );
+  const roomRate  = Number(room.pricePerNight) * nights;
+  const tax       = parseFloat((roomRate * 0.075).toFixed(2));
+  const total     = roomRate + tax;
+
+  await this.prisma.$transaction([
+    this.prisma.roomBooking.update({
+      where: { id: booking.id },
+      data:  { bookingStatus: 'CONFIRMED' },
+    }),
+    this.prisma.invoiceItem.create({
+      data: {
+        bookingId:   booking.id,
+        category:    'ROOM_RATE',
+        description: `Room ${room.roomNumber} — ${nights} night(s)`,
+        amount:      roomRate,
+      },
+    }),
+    this.prisma.invoiceItem.create({
+      data: {
+        bookingId:   booking.id,
+        category:    'TAX',
+        description: 'VAT (7.5%)',
+        amount:      tax,
+      },
+    }),
+  ]);
+
+  // Create in-app notification
+  await this.prisma.notification.create({
+    data: {
+      userId:  guest.id,
+      type:    'BOOKING_CONFIRMED',
+      title:   'Booking Confirmed! 🎉',
+      message: `Room ${room.roomNumber} booked. Ref: ${bookingRef}. Check-in: ${checkIn.toDateString()}`,
+      isRead:  false,
+    },
+  });
+
+  // Send confirmation email
+  if (data.email) {
+    await this.email.sendQuickBookingConfirmation({
+      guestName:   `${data.firstName} ${data.lastName}`,
+      guestEmail:  data.email,
+      guestPhone:  data.phone,
+      bookingRef,
+      roomNumber:  room.roomNumber,
+      roomType:    room.style,
+      checkIn:     checkIn.toDateString(),
+      checkOut:    checkOut.toDateString(),
+      nights,
+      totalAmount: total,
+      hotelName:   'Grand Issyone Hotel',
+    });
+  }
+
+  return {
+    success:    true,
+    bookingRef,
+    bookingId:  booking.id,
+    guestId:    guest.id,
+    room: {
+      roomNumber: room.roomNumber,
+      style:      room.style,
+    },
+    checkIn:    checkIn.toDateString(),
+    checkOut:   checkOut.toDateString(),
+    nights,
+    total,
+    message:    'Booking confirmed! Check your email for details.',
+  };
+}
+
   // ── Cancel ──────────────────────────────────────────────────────────────────
   async cancel(id: string, guestId?: string) {
     const booking = await this.findById(id);
@@ -497,6 +651,20 @@ export class BookingsController {
     }
     return this.svc.createPayment(id, body.method);
   }
+
+
+  @Post('quick')
+quickBook(@Body() body: {
+  firstName:    string;
+  lastName:     string;
+  email:        string;
+  phone:        string;
+  roomId:       string;
+  checkInDate:  string;
+  checkOutDate: string;
+}) {
+  return this.svc.quickBook(body);
+}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
