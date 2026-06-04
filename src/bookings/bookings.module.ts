@@ -558,7 +558,7 @@ async quickBook(data: {
   async assertGuestOwnership(bookingId: string, guestId: string) {
     const booking = await this.findById(bookingId);
     if (booking.guestId !== guestId) {
-      throw new BadRequestException('You can only access your own bookings');
+      throw new BadRequestException('You can only access your personal bookings');
     }
     return booking;
   }
