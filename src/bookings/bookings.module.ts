@@ -264,7 +264,7 @@ async quickBook(data: {
         email:        data.email,
         phone:        data.phone,
         passwordHash: tempPassword,
-        hotelId:      room.hotelId,
+        hotel:        { connect: { id: room.hotelId } },
       },
     });
   }
@@ -275,8 +275,8 @@ async quickBook(data: {
   // Create booking
   const booking = await this.prisma.roomBooking.create({
     data: {
-      guestId:       guest.id,
-      roomId:        data.roomId,
+      guest:    { connect: { id: guest.id } },
+      room:     { connect: { id: data.roomId } },
       checkInDate:   checkIn,
       checkOutDate:  checkOut,
       bookingStatus: 'PENDING',
@@ -318,12 +318,14 @@ async quickBook(data: {
   // Create in-app notification
   await this.prisma.notification.create({
     data: {
-      userId:  guest.id,
+      guest:    { connect: { id: guest.id } },
       type:    'BOOKING_CONFIRMED',
       title:   'Booking Confirmed! 🎉',
       message: `Room ${room.roomNumber} booked. Ref: ${bookingRef}. Check-in: ${checkIn.toDateString()}`,
       isRead:  false,
     },
+  }).catch(() => {
+    // Ignore errors from notification creation
   });
 
   // Send confirmation email
