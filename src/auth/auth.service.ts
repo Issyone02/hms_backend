@@ -76,6 +76,57 @@ export class AuthService {
     };
   }
 
+
+
+
+// ── Anonymous Guest Session ─────────────────────────────────────────────────
+  async guestAnonymousSession() {
+    const { randomUUID } = require('crypto');
+    const uid  = randomUUID();
+    const hash = await bcrypt.hash(uid, 4);
+    const guest = await this.prisma.guest.create({
+      data: {
+        firstName:    'Guest',
+        lastName:     uid.slice(0, 6).toUpperCase(),
+        email:        `anon_${uid}@hms.local`,
+        passwordHash: hash,
+        gdprConsent:  false,
+        isAnonymous:  true,
+      },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+
+    const tokens = await this.signTokens(guest.id, 'GUEST', guest.email);
+    return { ...tokens, guest, isAnonymous: true };
+  }
+
+  // ── Claim anonymous account ──────────────────────────────────────────────────
+  async claimAnonymousAccount(guestId: string, dto: RegisterGuestDto) {
+    const exists = await this.prisma.guest.findFirst({
+      where: { email: dto.email.toLowerCase(), deletedAt: null },
+    });
+    if (exists && exists.id !== guestId)
+      throw new ConflictException('Email already registered to another account');
+
+    const hash  = await bcrypt.hash(dto.password, 12);
+    const guest = await this.prisma.guest.update({
+      where: { id: guestId },
+      data: {
+        firstName:    dto.firstName,
+        lastName:     dto.lastName,
+        email:        dto.email.toLowerCase(),
+        passwordHash: hash,
+        phone:        dto.phone,
+        gdprConsent:  true,
+        isAnonymous:  false,
+      },
+      select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+    });
+
+    const tokens = await this.signTokens(guest.id, 'GUEST', guest.email);
+    return { ...tokens, guest };
+  }
+
   // ── Token helper ────────────────────────────────────────────────────────────
   private async signTokens(sub: string, role: string, email: string) {
     const payload = { sub, role, email };
