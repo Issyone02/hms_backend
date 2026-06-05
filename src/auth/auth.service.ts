@@ -76,14 +76,14 @@ export class AuthService {
     };
   }
 
-
-
-
-// ── Anonymous Guest Session ─────────────────────────────────────────────────
+  // ── Anonymous Guest Session ─────────────────────────────────────────────────
+  // Creates a temporary anonymous guest row so walk-in users can browse, book,
+  // receive notifications and pay — without a registered account.
+  // The guest row is marked isAnonymous=true and can be claimed later by
+  // calling /auth/guest/claim once the guest registers properly.
   async guestAnonymousSession() {
-    const { randomUUID } = require('crypto');
-    const uid  = randomUUID();
-    const hash = await bcrypt.hash(uid, 4);
+    const uid  = crypto.randomUUID ? crypto.randomUUID() : require('crypto').randomUUID();
+    const hash = await bcrypt.hash(uid, 4); // throwaway password — never used for login
     const guest = await this.prisma.guest.create({
       data: {
         firstName:    'Guest',
@@ -101,6 +101,8 @@ export class AuthService {
   }
 
   // ── Claim anonymous account ──────────────────────────────────────────────────
+  // Upgrades an anonymous guest row to a full account after they fill in the
+  // registration form in-app (without losing their existing bookings).
   async claimAnonymousAccount(guestId: string, dto: RegisterGuestDto) {
     const exists = await this.prisma.guest.findFirst({
       where: { email: dto.email.toLowerCase(), deletedAt: null },
