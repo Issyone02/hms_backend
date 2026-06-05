@@ -261,8 +261,7 @@ async quickBook(data: {
         email: data.email,
         phone: data.phone,
         passwordHash: tempPassword,
-        hotelId: room.hotelId,   // ✅ fixed: use hotelId scalar
-      } as any,
+      },
     });
   }
 
@@ -317,7 +316,7 @@ async quickBook(data: {
       type: 'BOOKING_CONFIRMED',
       message: `Room ${room.roomNumber} booked. Ref: ${bookingRef}. Check-in: ${checkIn.toDateString()}`,
       isRead: false,
-    } as any,
+    },
   }).catch(() => {
     // Ignore errors from notification creation
   });
@@ -581,10 +580,23 @@ export class BookingsController {
 
   // Authenticated endpoints below
   @Post()
-  @UseGuards(JwtAuthGuard)
-  async create(@Body() body: any, @CurrentUser() user: any) {
-    // ... existing code
+@UseGuards(JwtAuthGuard)
+async create(@Body() body: {
+  roomId: string; checkInDate: string;
+  checkOutDate: string; guestId?: string;
+}, @CurrentUser() user: any) {
+  const isStaff = user.role !== 'GUEST';
+  if (isStaff && !body.guestId) {
+    throw new BadRequestException('guestId is required for staff bookings');
   }
+  const guestId = isStaff ? body.guestId! : user.id;
+  const staffId = isStaff ? user.id : undefined;
+  return this.svc.create(
+    guestId, body.roomId,
+    body.checkInDate, body.checkOutDate,
+    staffId,
+  );
+}
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
