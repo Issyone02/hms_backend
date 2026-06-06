@@ -15,7 +15,7 @@ export class AuthService {
     private prisma:        PrismaService,
     private jwt:           JwtService,
     private config:        ConfigService,
-    private emailService?: EmailService,
+    private emailService:  EmailService,
   ) {}
 
   // ── Guest Register ──────────────────────────────────────────────────────────
@@ -148,31 +148,36 @@ export class AuthService {
   }
 
   // ── Forgot Password ─────────────────────────────────────────────────────────
-  // Sends a password reset link via email. Always returns success to prevent
-  // email enumeration attacks — the response is the same whether or not the
-  // email exists in the system.
+  // Generates a short 8-character reset code, saves it to the guest record,
+  // and emails it. Always returns the same message to prevent email enumeration.
   async forgotPassword(email: string) {
     const guest = await this.prisma.guest.findUnique({
       where: { email: email.toLowerCase() },
     });
 
     if (guest && !guest.deletedAt && !guest.isAnonymous) {
-      const { randomUUID } = require('crypto');
-      const token     = randomUUID();
+      // Generate a short uppercase code that is easy to type from an email
+      const { randomBytes } = require('crypto');
+      const resetCode = randomBytes(4).toString('hex').toUpperCase(); // e.g. "A3F9B2C1"
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
       await this.prisma.guest.update({
         where: { id: guest.id },
-        data:  { resetToken: token, resetTokenExpiry: expiresAt },
+        data:  { resetToken: resetCode, resetTokenExpiry: expiresAt },
       });
 
-      // Fire-and-forget — don't block the response on email delivery
-      this.emailService?.sendPasswordResetEmail?.({
-        guestName:  `${guest.firstName} ${guest.lastName}`,
-        guestEmail: guest.email,
-        resetToken: token,
-        hotelName:  'Grand Issyone Hotel',
-      }).catch(() => {});
+      // Send email — awaited properly so errors surface in logs
+      try {
+        await this.emailService.sendPasswordResetEmail({
+          guestName:  `${guest.firstName} ${guest.lastName}`,
+          guestEmail: guest.email,
+          resetToken: resetCode,
+          hotelName:  'Grand Issyone Hotel',
+        });
+      } catch (err) {
+        // Log but do not expose — guest still gets the success message
+        console.error('[ForgotPassword] Email send failed:', err);
+      }
     }
 
     // Always return the same message regardless of whether email exists

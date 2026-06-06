@@ -118,32 +118,108 @@ export class EmailService {
     resetToken: string;
     hotelName:  string;
   }) {
-    const resetUrl = `hms://reset-password?token=${data.resetToken}`;
     try {
       await this.resend.emails.send({
         from:    this.fromEmail,
         to:      data.guestEmail,
-        subject: `Reset Your Password — ${data.hotelName}`,
+        subject: `Your Password Reset Code — ${data.hotelName}`,
         html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0B1120;color:#F0F4FF;border-radius:12px;">
-            <h2 style="color:#C9A84C;margin-bottom:8px;">🏨 ${data.hotelName}</h2>
-            <h3 style="margin-bottom:16px;">Password Reset Request</h3>
-            <p>Hi ${data.guestName},</p>
-            <p>We received a request to reset your password. Use the code below in the app, or tap the button.</p>
-            <div style="background:#152035;border:2px solid #C9A84C;border-radius:10px;padding:20px;text-align:center;margin:24px 0;">
-              <p style="color:#8899BB;font-size:12px;margin:0 0 8px;">YOUR RESET TOKEN</p>
-              <p style="color:#C9A84C;font-size:22px;font-weight:800;letter-spacing:3px;font-family:monospace;margin:0;">
-                ${data.resetToken.slice(0, 8).toUpperCase()}
-              </p>
-              <p style="color:#506070;font-size:11px;margin:8px 0 0;">Valid for 1 hour</p>
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:40px 20px;">
+      <table width="520" cellpadding="0" cellspacing="0"
+             style="background:#0B1120;border-radius:16px;overflow:hidden;border:1px solid #1e3050;">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#152035;padding:28px 32px;border-bottom:3px solid #C9A84C;">
+            <div style="font-size:32px;margin-bottom:8px;">🏨</div>
+            <div style="color:#C9A84C;font-size:20px;font-weight:800;letter-spacing:0.5px;">
+              ${data.hotelName}
             </div>
-            <p style="color:#8899BB;font-size:13px;">If you did not request a password reset, please ignore this email.</p>
-          </div>
-        `,
+            <div style="color:#8899BB;font-size:13px;margin-top:4px;">
+              Password Reset Request
+            </div>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px;">
+            <p style="color:#F0F4FF;font-size:16px;margin:0 0 8px;">
+              Hi <strong>${data.guestName}</strong>,
+            </p>
+            <p style="color:#8899BB;font-size:14px;line-height:22px;margin:0 0 28px;">
+              We received a request to reset your password for your HMS account.
+              Enter the code below in the app to set a new password.
+            </p>
+
+            <!-- Reset Code Box -->
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center"
+                    style="background:#152035;border:2px solid #C9A84C;border-radius:12px;padding:28px;">
+                  <div style="color:#8899BB;font-size:12px;font-weight:700;
+                              letter-spacing:2px;margin-bottom:12px;">
+                    YOUR RESET CODE
+                  </div>
+                  <div style="color:#C9A84C;font-size:36px;font-weight:800;
+                              letter-spacing:8px;font-family:Courier New,monospace;">
+                    ${data.resetToken}
+                  </div>
+                  <div style="color:#506070;font-size:12px;margin-top:12px;">
+                    ⏱ This code expires in <strong style="color:#F0F4FF;">1 hour</strong>
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Instructions -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;">
+              <tr>
+                <td style="background:#0d1a2e;border-radius:10px;padding:20px;
+                           border-left:3px solid #008080;">
+                  <div style="color:#8899BB;font-size:13px;line-height:22px;">
+                    <strong style="color:#F0F4FF;">How to reset your password:</strong><br>
+                    1. Open the HMS app on your phone<br>
+                    2. Tap <em>"Forgot Password"</em> on the login screen<br>
+                    3. Enter your email address<br>
+                    4. Enter the code above when prompted<br>
+                    5. Set your new password
+                  </div>
+                </td>
+              </tr>
+            </table>
+
+            <p style="color:#506070;font-size:12px;line-height:20px;margin-top:28px;">
+              If you did not request a password reset, please ignore this email.
+              Your password will remain unchanged and this code will expire automatically.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="background:#152035;padding:20px 32px;border-top:1px solid #1e3050;">
+            <div style="color:#506070;font-size:11px;text-align:center;">
+              ${data.hotelName} &nbsp;•&nbsp; Victoria Island, Lagos, Nigeria<br>
+              This is an automated message, please do not reply.
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
       });
       this.logger.log(`Password reset email sent to ${data.guestEmail}`);
     } catch (err) {
-      this.logger.error(`Failed to send password reset email: ${err}`);
+      this.logger.error(`Failed to send password reset email to ${data.guestEmail}: ${err}`);
+      throw err; // Re-throw so auth service can log it
     }
   }
 
