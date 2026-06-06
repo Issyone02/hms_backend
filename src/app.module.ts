@@ -5,7 +5,7 @@ import { ThrottlerModule }  from '@nestjs/throttler';
 import { PrismaModule }     from './common/prisma/prisma.module';
 import { AuthModule }       from './auth/auth.module';
 import { RoomsModule }      from './rooms/rooms.module';
-// Bookings module export mismatch; remove until corrected in bookings module
+import { BookingsModule }   from './bookings/bookings.module';
 import { PaymentsModule }   from './payments/payments.module';
 import { HousekeepingModule } from './housekeeping/housekeeping.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -21,7 +21,7 @@ import { EmailModule } from './email/email.module';
     PrismaModule,
     AuthModule,
     RoomsModule,
-    // BookingsModule,
+    BookingsModule,
     PaymentsModule,
     HousekeepingModule,
     NotificationsModule,
