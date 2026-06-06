@@ -663,3 +663,11 @@ async create(@Body() body: {
     return this.svc.createPayment(id, body.method);
   }
 }
+
+@Module({
+  imports:     [NotificationsModule, EmailModule],
+  controllers: [BookingsController],
+  providers:   [BookingsService],
+  exports:     [BookingsService],
+})
+export class BookingsModule {}
