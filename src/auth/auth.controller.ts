@@ -43,4 +43,21 @@ export class AuthController {
   refresh(@Body('refreshToken') token: string) {
     return this.auth.refresh(token);
   }
+
+  // ── Forgot Password — public, no auth needed ───────────────────────────────
+  @Post('forgot-password')
+  @HttpCode(200)
+  forgotPassword(@Body('email') email: string) {
+    return this.auth.forgotPassword(email);
+  }
+
+  // ── Reset Password — token from email link ─────────────────────────────────
+  @Post('reset-password')
+  @HttpCode(200)
+  resetPassword(
+    @Body('token') token: string,
+    @Body('password') password: string,
+  ) {
+    return this.auth.resetPassword(token, password);
+  }
 }

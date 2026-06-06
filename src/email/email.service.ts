@@ -111,6 +111,42 @@ export class EmailService {
     }
   }
 
+  // ── Password Reset ──────────────────────────────────────────────
+  async sendPasswordResetEmail(data: {
+    guestName:  string;
+    guestEmail: string;
+    resetToken: string;
+    hotelName:  string;
+  }) {
+    const resetUrl = `hms://reset-password?token=${data.resetToken}`;
+    try {
+      await this.resend.emails.send({
+        from:    this.fromEmail,
+        to:      data.guestEmail,
+        subject: `Reset Your Password — ${data.hotelName}`,
+        html: `
+          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0B1120;color:#F0F4FF;border-radius:12px;">
+            <h2 style="color:#C9A84C;margin-bottom:8px;">🏨 ${data.hotelName}</h2>
+            <h3 style="margin-bottom:16px;">Password Reset Request</h3>
+            <p>Hi ${data.guestName},</p>
+            <p>We received a request to reset your password. Use the code below in the app, or tap the button.</p>
+            <div style="background:#152035;border:2px solid #C9A84C;border-radius:10px;padding:20px;text-align:center;margin:24px 0;">
+              <p style="color:#8899BB;font-size:12px;margin:0 0 8px;">YOUR RESET TOKEN</p>
+              <p style="color:#C9A84C;font-size:22px;font-weight:800;letter-spacing:3px;font-family:monospace;margin:0;">
+                ${data.resetToken.slice(0, 8).toUpperCase()}
+              </p>
+              <p style="color:#506070;font-size:11px;margin:8px 0 0;">Valid for 1 hour</p>
+            </div>
+            <p style="color:#8899BB;font-size:13px;">If you did not request a password reset, please ignore this email.</p>
+          </div>
+        `,
+      });
+      this.logger.log(`Password reset email sent to ${data.guestEmail}`);
+    } catch (err) {
+      this.logger.error(`Failed to send password reset email: ${err}`);
+    }
+  }
+
   // ══════════════════════════════════════════════════════════════
   // EMAIL TEMPLATES
   // ══════════════════════════════════════════════════════════════
