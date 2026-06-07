@@ -23,6 +23,7 @@ async function bootstrap() {
     'http://localhost:3000',
     /\.railway\.app$/,
     /\.vercel\.app$/,
+    /\.expo\.dev$/,
   ],
   credentials: true,
 });
