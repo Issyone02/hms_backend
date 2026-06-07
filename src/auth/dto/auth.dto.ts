@@ -14,3 +14,13 @@ export class LoginDto {
   @IsEmail()                email: string;
   @IsString() @MinLength(1) password: string;
 }
+
+// src/auth/dto/forgot-password.dto.ts
+export class ForgotPasswordDto {
+  @IsEmail() email: string;
+}
+
+export class ResetPasswordDto {
+  @IsString() @MinLength(1) token: string;
+  @IsString() @MinLength(8) password: string;
+}

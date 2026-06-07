@@ -1,7 +1,7 @@
 // src/auth/auth.controller.ts
 import { Controller, Post, Body, HttpCode, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterGuestDto, LoginDto } from './dto/auth.dto';
+import { RegisterGuestDto, LoginDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { JwtAuthGuard } from './auth.guards';
 
 @Controller('api/v1/auth')
@@ -47,17 +47,13 @@ export class AuthController {
   // ── Forgot Password — public, no auth needed ───────────────────────────────
   @Post('forgot-password')
   @HttpCode(200)
-  forgotPassword(@Body('email') email: string) {
-    return this.auth.forgotPassword(email);
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
   }
 
-  // ── Reset Password — token from email link ─────────────────────────────────
   @Post('reset-password')
   @HttpCode(200)
-  resetPassword(
-    @Body('token') token: string,
-    @Body('password') password: string,
-  ) {
-    return this.auth.resetPassword(token, password);
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.password);
   }
 }
