@@ -5,7 +5,7 @@ import { Resend } from 'resend';
 export class EmailService {
   private resend: Resend;
   private readonly logger = new Logger(EmailService.name);
-  private readonly fromEmail = 'HMS <noreply@grandissyone.com>';
+  private readonly fromEmail = 'HMS <onboarding@resend.dev>';
 
   constructor() {
     this.resend = new Resend(process.env.RESEND_API_KEY);
